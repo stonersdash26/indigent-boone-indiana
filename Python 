@@ -1,1 +1,123 @@
-https://github.com/jrex003/indigent-defense-stats/blob/main/.github%2Fworkflows%2Fpython-app.yml
+import sqlite3
+import hashlib
+import os
+import sys
+from datetime import datetime
+
+class CyberBlackHole:
+    def __init__(self, db_path="event_horizon.db"):
+        """Initialize the data well and establish the jurisdiction of the ledger."""
+        self.db_path = db_path
+        self.conn = sqlite3.connect(self.db_path)
+        self.cursor = self.conn.cursor()
+        self._forge_ledger()
+
+    def _forge_ledger(self):
+        """Construct the immutable schema if it does not already exist."""
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS artifact_ledger (
+                hash_id TEXT PRIMARY KEY,
+                original_filename TEXT NOT NULL,
+                file_size_bytes INTEGER NOT NULL,
+                ingestion_timestamp TEXT NOT NULL,
+                source_jurisdiction TEXT,
+                integrity_status TEXT DEFAULT 'VERIFIED'
+            )
+        ''')
+        self.conn.commit()
+
+    def calculate_sha256(self, file_path):
+        """Generate a cryptographic signature using 64kb memory chunks."""
+        sha256_hash = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                for byte_block in iter(lambda: f.read(65536), b""):
+                    sha256_hash.update(byte_block)
+            return sha256_hash.hexdigest()
+        except FileNotFoundError:
+            print(f"[ERROR] Artifact missing at coordinates: {file_path}")
+            return None
+
+    def ingest_artifact(self, file_path, jurisdiction="Municipal_Portal"):
+        """Pull a file across the event horizon and lock it into the ledger."""
+        if not os.path.exists(file_path):
+            print(f"[FAIL] Cannot ingest. File not found: {file_path}")
+            return False
+
+        file_hash = self.calculate_sha256(file_path)
+        if not file_hash:
+            return False
+
+        file_size = os.path.getsize(file_path)
+        filename = os.path.basename(file_path)
+        timestamp = datetime.utcnow().isoformat() + "Z"
+
+        try:
+            self.cursor.execute('''
+                INSERT INTO artifact_ledger 
+                (hash_id, original_filename, file_size_bytes, ingestion_timestamp, source_jurisdiction)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (file_hash, filename, file_size, timestamp, jurisdiction))
+            self.conn.commit()
+            print(f"[LOCKED] {filename} | SHA-256: {file_hash[:8]}... | Size: {file_size}b")
+            return True
+            
+        except sqlite3.IntegrityError:
+            print(f"[REJECTED] Cryptographic collision. Artifact {file_hash[:8]} already exists in the well.")
+            return False
+
+    def audit_jurisdiction(self, directory_path):
+        """Scan a directory and verify all files against the immutable ledger."""
+        print(f"\n--- Initiating Deep Legalistic Audit of: {directory_path} ---")
+        
+        self.cursor.execute('SELECT hash_id, original_filename FROM artifact_ledger')
+        ledger_records = {row[0]: row[1] for row in self.cursor.fetchall()}
+        
+        verified_count = 0
+        unregistered_files = []
+
+        for root, _, files in os.walk(directory_path):
+            for file in files:
+                # Skip the database itself
+                if file == os.path.basename(self.db_path):
+                    continue
+                    
+                full_path = os.path.join(root, file)
+                current_hash = self.calculate_sha256(full_path)
+                
+                if current_hash in ledger_records:
+                    print(f"[INTEGRITY INTACT] {file}")
+                    verified_count += 1
+                else:
+                    unregistered_files.append(file)
+
+        print("\n--- Audit Summary ---")
+        print(f"Artifacts mathematically verified: {verified_count}")
+        if unregistered_files:
+            print(f"WARNING: Found {len(unregistered_files)} rogue artifacts outside the ledger:")
+            for uf in unregistered_files:
+                print(f"  -> {uf}")
+
+    def close_horizon(self):
+        """Seal the database connection."""
+        self.conn.close()
+
+if __name__ == "__main__":
+    # Execution parameters
+    well = CyberBlackHole()
+    
+    # Example usage: Create a dummy file to test the gravity well
+    test_file = "dossier_evidence_001.txt"
+    with open(test_file, "w") as f:
+        f.write("Public meeting minutes - absolute integrity required.")
+    
+    # Ingest the file
+    well.ingest_artifact(test_file, jurisdiction="Indiana_Open_Door_Statute")
+    
+    # Attempt to ingest it again to test cryptographic rejection
+    well.ingest_artifact(test_file, jurisdiction="Indiana_Open_Door_Statute")
+    
+    # Run an audit on the current directory
+    well.audit_jurisdiction(".")
+    
+    well.close_horizon()
