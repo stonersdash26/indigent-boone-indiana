@@ -98,3 +98,75 @@ def main():
 
 if __name__ == "__main__":
     main()
+import os
+import sqlite3
+import hashlib
+from datetime import datetime
+
+def register_dossier_evidence(db_path, identifier, file_path, source_tag):
+    """Log specialized case/body cam artifacts into the immutable ledger."""
+    if not os.path.exists(file_path):
+        print(f"[FAIL] Target payload not found at coordinates: {file_path}")
+        return False
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Ensure the artifact_ledger table exists to prevent schema failure
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS artifact_ledger (
+            hash_id TEXT PRIMARY KEY,
+            original_filename TEXT,
+            file_size_bytes INTEGER,
+            ingestion_timestamp TEXT,
+            source_jurisdiction TEXT,
+            integrity_status TEXT
+        )
+    ''')
+    conn.commit()
+
+    # Calculate SHA-256 hash of the media/document payload
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(65536), b""):
+            sha256_hash.update(byte_block)
+    file_hash = sha256_hash.hexdigest()
+    
+    file_size = os.path.getsize(file_path)
+    timestamp = datetime.utcnow().isoformat() + "Z"
+    
+    try:
+        cursor.execute('''
+            INSERT INTO artifact_ledger 
+            (hash_id, original_filename, file_size_bytes, ingestion_timestamp, source_jurisdiction, integrity_status)
+            VALUES (?, ?, ?, ?, ?, 'VERIFIED')
+        ''', (file_hash, f"{identifier}_{os.path.basename(file_path)}", file_size, timestamp, source_tag))
+        conn.commit()
+        print(f"[LOCKED] Identifier {identifier} sealed | Hash: {file_hash[:12]}...")
+        return True
+    except sqlite3.IntegrityError:
+        print(f"[REJECTED] Cryptographic collision for identifier {identifier}. Duplicate payload detected.")
+        return False
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    # Example execution for your active Sullivan County dockets
+    DATABASE_WELL = "event_horizon.db"
+    
+    # Example: Ingesting body cam footage for docket 77-DM4020153
+    # register_dossier_evidence(
+    #     db_path=DATABASE_WELL, 
+    #     identifier="77-DM4020153", 
+    #     file_path="./staging/body_cam_export.mp4", 
+    #     source_tag="Sullivan_County_Judicial_Audit"
+    # )
+    
+    # Example: Ingesting document evidence for docket 77D01-2609-CM-000645
+    # register_dossier_evidence(
+    #     db_path=DATABASE_WELL, 
+    #     identifier="77D01-2609-CM-000645", 
+    #     file_path="./staging/court_record.pdf", 
+    #     source_tag="Sullivan_County_Judicial_Audit"
+    # )
+    pass
