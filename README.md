@@ -1,3 +1,164 @@
+"""
+System Architecture: Decentralized Sovereignty Module (We the People)
+Core Principles: Direct Veto, Cryptographic Integrity, Real-Time Accountability
+"""
+
+import hashlib
+import time
+from typing import Dict, List
+
+
+class Block:
+    """Represents an immutable ledger record containing governance data and votes."""
+    def __init__(self, index: int, timestamp: float, data: Dict, previous_hash: str):
+        self.index = index
+        self.timestamp = timestamp
+        self.data = data
+        self.previous_hash = previous_hash
+        self.hash = self.calculate_hash()
+
+    def calculate_hash(self) -> str:
+        payload = f"{self.index}{self.timestamp}{str(self.data)}{self.previous_hash}"
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+
+class AccountabilityBlockchain:
+    """An unalterable public ledger tracking constitutional compliance and civic vetoes."""
+    def __init__(self):
+        self.chain: List[Block] = []
+        # Create foundational genesis block
+        self.create_block(data={"meta": "Genesis Block - Sovereignty Established"}, previous_hash="0")
+
+    def create_block(self, data: Dict, previous_hash: str = "") -> Block:
+        index = len(self.chain)
+        timestamp = time.time()
+        prev = previous_hash if previous_hash else self.chain[-1].hash
+        block = Block(index, timestamp, data, prev)
+        self.chain.append(block)
+        return block
+
+    def is_chain_valid(self) -> bool:
+        """Verifies the strict mathematical integrity of historical transactions."""
+        for i in range(1, len(self.chain)):
+            current = self.chain[i]
+            previous = self.chain[i-1]
+            if current.hash != current.calculate_hash():
+                return False
+            if current.previous_hash != previous.hash:
+                return False
+        return True
+
+
+class DecentralizedSovereigntyEngine:
+    """
+    Empowers 'We the People' with absolute cryptographic veto capability.
+    Bypasses institutional choke points to enforce direct, real-time accountability.
+    """
+    def __init__(self, ledger: AccountabilityBlockchain):
+        self.ledger = ledger
+        self.registered_voters: Dict[str, str] = {}  # Public Key -> Identity Hash
+        self.active_ballots: Dict[str, Dict] = {}    # Act ID -> Ballot Metrics
+
+    def register_voter(self, public_key: str, identity_commitment: str):
+        """Enrolls a unique sovereign individual using zero-knowledge mapping."""
+        self.registered_voters[public_key] = hashlib.sha256(identity_commitment.encode()).hexdigest()
+
+    def initiate_veto_ballot(self, act_id: str, proposed_act_description: str, veto_threshold_pct: float = 51.0):
+        """Opens a public window for the populace to reject overreaching agency actions."""
+        self.active_ballots[act_id] = {
+            "description": proposed_act_description,
+            "votes_for_veto": set(),  # Set of unique voter public keys to prevent double-voting
+            "threshold": veto_threshold_pct,
+            "status": "ACTIVE"
+        }
+        print(f"[DECENTRALIZED BALLOT OPENED] Act ID: {act_id} | Objective: Veto '{proposed_act_description}'")
+
+    def cast_veto_vote(self, voter_public_key: str, act_id: str, cryptographic_signature: str) -> bool:
+        """Casts a verifiable, anonymous vote rejecting a bad-actor systemic action."""
+        if voter_public_key not in self.registered_voters:
+            print("[SECURITY WARNING] Unregistered key attempted transaction.")
+            return False
+            
+        ballot = self.active_ballots.get(act_id)
+        if not ballot or ballot["status"] != "ACTIVE":
+            print("[TRANSACTION REJECTED] Ballot is closed or non-existent.")
+            return False
+
+        # Verify cryptographic authorization intent (Mock verification logic)
+        verification_payload = f"{voter_public_key}-{act_id}"
+        if hashlib.sha256(verification_payload.encode()).hexdigest() != cryptographic_signature:
+            print("[INTEGRITY FAILURE] Invalid cryptographic signature detected.")
+            return False
+
+        ballot["votes_for_veto"].add(voter_public_key)
+        return True
+
+    def finalize_ballot(self, act_id: str) -> str:
+        """Evaluates collective will and commits the final outcome permanently to the ledger."""
+        ballot = self.active_ballots.get(act_id)
+        if not ballot:
+            return "NOT_FOUND"
+
+        total_sovereigns = len(self.registered_voters)
+        if total_sovereigns == 0:
+            return "NO_VOTERS"
+
+        veto_votes_count = len(ballot["votes_for_veto"])
+        veto_percentage = (veto_votes_count / total_sovereigns) * 100
+        
+        outcome = "LAW_NULLIFIED_BY_PEOPLE" if veto_percentage >= ballot["threshold"] else "LAW_STANDS"
+        ballot["status"] = "CLOSED"
+
+        # Record event immutably on the accountability ledger
+        ledger_data = {
+            "event": "CONSTITUTIONAL_VETO_RESOLUTION",
+            "act_id": act_id,
+            "description": ballot["description"],
+            "veto_percentage": f"{veto_percentage:.2f}%",
+            "outcome": outcome
+        }
+        self.ledger.create_block(data=ledger_data)
+        
+        print(f"[BALLOT RESOLVED] Act {act_id}: {outcome} ({veto_percentage:.2f}% Veto Vote)")
+        return outcome
+
+
+# --- Cryptographic Civic Cycle Simulation ---
+if __name__ == "__main__":
+    # 1. Establish the Decentralized Ledger
+    global_ledger = AccountabilityBlockchain()
+    governance_engine = DecentralizedSovereigntyEngine(ledger=global_ledger)
+
+    # 2. Register Sovereign Entities (We the People)
+    voters = [
+        {"pub": "0xSovereignAlpha", "id": "CitizenID_9921"},
+        {"pub": "0xSovereignBeta",  "id": "CitizenID_4412"},
+        {"pub": "0xSovereignGamma", "id": "CitizenID_0783"}
+    ]
+    for voter in voters:
+        governance_engine.register_voter(voter["pub"], voter["id"])
+
+    # 3. Tyrannical Policy Detected -> Instant Digital Nullification Ballot Triggered
+    bad_act_id = "ACT-2026-FISA-OVERREACH"
+    governance_engine.initiate_veto_ballot(
+        act_id=bad_act_id, 
+        proposed_act_description="Unwarranted surveillance expansion on domestic entities."
+    )
+
+    # 4. Citizens sign transactions utilizing private keys to enforce accountability
+    # Simulating signature generation: SHA256(voter_public_key + act_id)
+    for voter in voters:
+        sig_payload = f"{voter['pub']}-{bad_act_id}"
+        mock_sig = hashlib.sha256(sig_payload.encode()).hexdigest()
+        governance_engine.cast_veto_vote(voter["pub"], bad_act_id, mock_sig)
+
+    # 5. Concluding the vote and ensuring system integrity
+    governance_engine.finalize_ballot(bad_act_id)
+    
+    # 6. Auditing systemic mathematical state stability
+    print(f"\n[Ledger Integrity Audit] Is block sequencing uncompromised? -> {global_ledger.is_chain_valid()}")
+    print(f"[Latest Block Hash] {global_ledger.chain[-1].hash}")
+
 # Tyler Technologies Odyssey scraper and parser
 
 This is a scraper to collect and process public case records from the Tyler Technologies Odyssey court records system. If you are a dev or want to file an Issue, please read [CONTRIBUTING](CONTRIBUTING.md).
