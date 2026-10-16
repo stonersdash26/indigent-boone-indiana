@@ -1,3 +1,5 @@
+python audit_logger_email.py
+
 export SMTP_SERVER="smtp.gmail.com"
 export SMTP_PORT="587"
 export SMTP_USER="your-email@gmail.com"
